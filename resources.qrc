@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/images"/>
+    <qresource prefix="/">
+        <file>images/UANL Logo.png</file>
+        <file>images/Arrow Icon.png</file>
+    </qresource>
+</RCC>

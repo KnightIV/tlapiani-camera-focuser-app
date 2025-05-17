@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
+include(FetchContent)
+
 project(camera-focuser-app VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_AUTOUIC ON)
@@ -12,18 +14,25 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 
+find_package(CURL REQUIRED)
+include_directories(${CURL_INCLUDE_DIR})
+
 set(PROJECT_SOURCES
         main.cpp
         widget.cpp
         widget.h
-        widget.ui
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(camera-focuser-app
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
-        ipwi4client.h ipwi4client.cpp
+        ipwi4client.h
+        resources.qrc
+        focuscontroller.h focuscontroller.cpp
+        pwiclient.cpp
+        pwiclient.cpp
+        pwiclient.h
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET camera-focuser-app APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
@@ -43,7 +52,12 @@ else()
     endif()
 endif()
 
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz)
+FetchContent_MakeAvailable(json)
+
 target_link_libraries(camera-focuser-app PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+target_link_libraries(camera-focuser-app PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(camera-focuser-app PRIVATE ${CURL_LIBRARIES})
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
