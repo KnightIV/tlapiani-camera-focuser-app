@@ -6,17 +6,18 @@
 #include <QString>
 
 #include <QtLogging>
+#include <QTimer> // only used for mock client
 
 #include "focuscontroller.h"
 
-class MockPwi4Client : public IPWI4Client{
+class MockPwi4Client : public IPWI4Client {
 
 private:
-    bool m_isEnabled;
-    bool m_isConnected;
-    bool m_isMoving;
+    bool m_isEnabled = false;
+    bool m_isConnected = false;
+    bool m_isMoving = false;
 
-    float m_position;
+    float m_position = 0;
 
     // IPWI4Client interface
 public:
@@ -41,9 +42,14 @@ public:
     virtual void focuserGoto(float target) override {
         this->m_position = target;
         this->m_isMoving = true;
+
+        QTimer::singleShot(500, [=]() {
+            this->m_isMoving = false;
+        });
     }
 
     virtual void focuserStop() override {
+        qInfo() << "Called stop";
         this->m_isMoving = false;
     }
 
@@ -66,36 +72,15 @@ public:
 
 Widget::Widget(QWidget *parent) : QWidget(parent) {
     setWindowTitle("Tlapiani - Camara y Enfocador");
-    resize(500, 400);
-
-    // QLabel *label = new QLabel(this);
-    // label->setText("label 1");
-
-    // QLabel *label2 = new QLabel(this);
-    // label2->setText("label 2");
-
-    // UANL logo example
-    // label->setGeometry(20, 20, 800, 800);
-    // label->setPixmap(QPixmap(":/images/UANL Logo.png"));
+    resize(1000, 800);
 
     QGridLayout *layout = new QGridLayout(this);
-    // layout->addWidget(label, 0, 1);
-    // layout->addWidget(label2, 1, 0);
-
-    // qInfo() << layout->columnCount();
-
-    // for (int i = 0; i < 2; i++) {
-    //     for (int j = 0; j < 2; j++) {
-    //         QLabel *label = new QLabel(this);
-    //         label->setText(QString::number((i*2) + j));
-    //         layout->addWidget(label, i, j);
-    //     }
-    // }
-
-    FocusController *c = new FocusController(this, new MockPwi4Client());
-    // c->setMinimumHeight(10);
-    // layout->addWidget(c, 0, 0, Qt::AlignHCenter);
-    layout->addWidget(c, 0, 0);
+    for (int r = 0; r < 2; r++) {
+        for (int c = 0; c < 2; c++) {
+            FocusController *controller = new FocusController(this, new MockPwi4Client());
+            layout->addWidget(controller, r, c);
+        }
+    }
 }
 
 Widget::~Widget() {

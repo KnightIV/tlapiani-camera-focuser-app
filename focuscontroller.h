@@ -3,8 +3,6 @@
 #include <QWidget>
 #include <QPushButton>
 #include <QLabel>
-#include <QTimer>
-#include <QString>
 #include <QLineEdit>
 
 #include "ipwi4client.h"
@@ -21,8 +19,8 @@ private:
     QPushButton *m_enableBtn, *m_disableBtn;
 
     QLabel *m_positionLabel;
-    QLineEdit *m_stepSizeText;
-    QPushButton *m_upStepBtn, *m_downStepBtn;
+    QLineEdit *m_stepSizeText, *m_goPositionText;
+    QPushButton *m_upStepBtn, *m_downStepBtn, *m_goPositionBtn;
 
     QLabel *m_isMovingLabel;
     QPushButton *m_stopBtn;
@@ -30,15 +28,21 @@ private:
     static int getNextId();
 
     void setupWidget();
+    void setupControls();
+
+    void setEnabledControls(bool enable);
     void checkPwiConnection();
+    void checkPwiEnabled();
+    void moveFocuser(float newPosition);
 
 public:
     explicit FocusController(QWidget *parent, IPWI4Client *pwi);
 
     ~FocusController();
 
-public slots:
-    void connectPwi(bool isChecked);
+private slots:
+    void doPwiConnect(bool isConnecting);
+    void doPwiEnable(bool isEnabling);
 
     void updatePosition();
     void updateStepSize(const QString &textChanged);
