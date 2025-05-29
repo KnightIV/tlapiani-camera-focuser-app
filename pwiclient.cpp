@@ -59,43 +59,73 @@ bool PWI4::sendPostRequest(const std::string &endpoint, const nlohmann::json &po
 
 // IPWIClient interface
 void PWI4::focuserConnect() {
-    // focuser_connect
+    sendPostRequest("/focuser/connect", {});
 }
 
 void PWI4::focuserDisconnect() {
-    // focuser_disconnect
+    sendPostRequest("/focuser/disconnect", {});
 }
 
 void PWI4::focuserEnable() {
-    // focuser_enable
+    sendPostRequest("/focuser/enable", {});
 }
 
 void PWI4::focuserDisable() {
-    // focuser_disable
+    sendPostRequest("/focuser/disable", {});
 }
 
 void PWI4::focuserGoto(float target) {
-    // focuser_goto
+    sendPostRequest("/focuser/goto", { {"position", target} });
 }
 
 void PWI4::focuserStop() {
-    // focuser_stop
+    sendPostRequest("/focuser/stop", {});
 }
 
-// =============================================
-
 bool PWI4::focuserIsConnected() {
-    // self.focuser.is_connected
+    std::string response = sendGetRequest("/focuser");
+    if (response.empty()) return false;
+    try {
+        auto jsonData = nlohmann::json::parse(response);
+        return jsonData["is_connected"];
+    }
+    catch (...) {
+        return false;
+    }
 }
 
 bool PWI4::focuserIsEnabled() {
-    // self.focuser.is_enabled
+    std::string response = sendGetRequest("/focuser");
+    if (response.empty()) return false;
+    try {
+        auto jsonData = nlohmann::json::parse(response);
+        return jsonData["is_enabled"];
+    }
+    catch (...) {
+        return false;
+    }
 }
 
 bool PWI4::focuserIsMoving() {
-    // self.focuser.is_moving
+    std::string response = sendGetRequest("/focuser");
+    if (response.empty()) return false;
+    try {
+        auto jsonData = nlohmann::json::parse(response);
+        return jsonData["is_moving"];
+    }
+    catch (...) {
+        return false;
+    }
 }
 
 float PWI4::focuserPosition() {
-    // self.focuser.position
+    std::string response = sendGetRequest("/focuser");
+    if (response.empty()) return -1.0f;
+    try {
+        auto jsonData = nlohmann::json::parse(response);
+        return jsonData["position"];
+    }
+    catch (...) {
+        return -1.0f;
+    }
 }
