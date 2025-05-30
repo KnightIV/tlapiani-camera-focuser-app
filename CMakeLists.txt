@@ -14,14 +14,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 
-find_package(CURL REQUIRED)
-include_directories(${CURL_INCLUDE_DIR})
+find_package(cpr CONFIG REQUIRED)
 
 set(PROJECT_SOURCES
         main.cpp
         widget.cpp
         widget.h
 )
+
+# add_compile_options(
+#   "$<$<COMPILE_LANGUAGE:CXX>:-DBUILD_SHARED_LIBS:BOOL=OFF>"
+# )
+
+# SET( CMAKE_CXX_FLAGS  "-DBUILD_SHARED_LIBS:BOOL=OFF")
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(camera-focuser-app
@@ -52,12 +57,8 @@ else()
     endif()
 endif()
 
-FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz)
-FetchContent_MakeAvailable(json)
-
 target_link_libraries(camera-focuser-app PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
-target_link_libraries(camera-focuser-app PRIVATE nlohmann_json::nlohmann_json)
-target_link_libraries(camera-focuser-app PRIVATE ${CURL_LIBRARIES})
+target_link_libraries(camera-focuser-app PRIVATE cpr::cpr)
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
