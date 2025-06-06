@@ -1,131 +1,140 @@
 #include "pwiclient.h"
 
-#include <iostream>
+#include <QDebug>
 
-PWI4::PWI4(const std::string &url) : base_url(url) {
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
-}
+std::string getFocuserProperty(const std::string &pwiResponse, const std::string property) {
+    std::stringstream ss(pwiResponse);
 
-PWI4::~PWI4() {
-    curl_easy_cleanup(curl);
-    curl_global_cleanup();
-}
+    std::string line;
+    while (std::getline(ss, line, '\n')) {
+        if (line.starts_with("focuser")) {
+            size_t propNameIdx = line.find('.') + 1;
+            size_t propValueIdx = line.find('=') + 1;
+            std::string curProp = line.substr(propNameIdx, (propValueIdx - 1) - propNameIdx);
 
-size_t PWI4::WriteCallback(void *contents, size_t size, size_t nmemb, void *userp) {
-    ((std::string*)userp)->append((char*)contents, size * nmemb);
-    return size * nmemb;
-}
+            if (curProp.at(curProp.length() - 1) == '\r') {
+                curProp = curProp.erase(curProp.length() - 1);
+            }
 
-std::string PWI4::sendGetRequest(const std::string &endpoint) {
-    std::string readBuffer;
-    std::string url = base_url + endpoint;
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-    res = curl_easy_perform(curl);
-
-    if (res != CURLE_OK) {
-        std::cerr << "GET request failed: " << curl_easy_strerror(res) << std::endl;
-        return "";
-    }
-    return readBuffer;
-}
-
-bool PWI4::sendPostRequest(const std::string &endpoint, const nlohmann::json &postData) {
-    std::string readBuffer;
-    std::string url = base_url + endpoint;
-    std::string jsonData = postData.dump();
-
-    struct curl_slist *headers = NULL;
-    headers = curl_slist_append(headers, "Content-Type: application/json");
-
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, jsonData.c_str());
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-
-    res = curl_easy_perform(curl);
-    curl_slist_free_all(headers);
-
-    if (res != CURLE_OK) {
-        std::cerr << "POST request failed: " << curl_easy_strerror(res) << std::endl;
-        return false;
+            if (property == curProp) {
+                return line.substr(propValueIdx);
+            }
+        }
     }
 
-    return true;
+    throw std::logic_error(property + " not found");
+}
+
+float getFocuserPropertyFloat(const std::string &pwiResponse, const std::string property) {
+    return std::stof(getFocuserProperty(pwiResponse, property));
+}
+
+bool getFocuserPropertyBool(const std::string &pwiResponse, const std::string property) {
+    return getFocuserProperty(pwiResponse, property) == "true";
+}
+
+PWI4::PWI4(const std::string &url) : base_url(url) {}
+
+PWI4::~PWI4() {}
+
+cpr::Response PWI4::sendGetRequest(const std::string &endpoint,
+                                   const std::initializer_list<cpr::Parameter> parameters={}) {
+    const std::string url = base_url + endpoint;
+    return cpr::Get(cpr::Url(url), cpr::Parameters(parameters));
+}
+
+void PWI4::sendGetRequestAsync(const std::string &endpoint, std::function<void (cpr::Response)> callback) {
+    const std::string url = base_url + endpoint;
+    cpr::GetCallback(callback, cpr::Url(url), cpr::Timeout{2000});
+}
+
+void PWI4::tryUpdateFocuserCache() {
+    std::chrono::duration curTime = std::chrono::system_clock::now().time_since_epoch();
+    m_focuserCache.m_propertyMutex.lock();
+    if (curTime - m_focuserCache.m_propertyLastUpdate > PWI4::FocuserPropertyCache::STALE_TIME && !m_focuserCache.cacheUpdating) {
+        m_focuserCache.cacheUpdating = true;
+        m_focuserCache.m_propertyLastUpdate = curTime;
+
+        // enable seems to be a good endpoint that doesn't functionally do anything but still returns app status
+        sendGetRequestAsync("/enable", [=, this](cpr::Response r) {
+            switch (r.status_code) {
+            case cpr::status::HTTP_OK:
+                m_focuserCache.m_propertyMutex.lock();
+                m_focuserCache.exists = getFocuserPropertyBool(r.text, "exists");
+                m_focuserCache.isConnected = getFocuserPropertyBool(r.text, "is_connected");
+                m_focuserCache.position = getFocuserPropertyFloat(r.text, "position");
+                m_focuserCache.isMoving = getFocuserPropertyBool(r.text, "is_moving");
+
+                m_focuserCache.cacheUpdating = false;
+                m_focuserCache.m_propertyMutex.unlock();
+                break;
+
+            case cpr::status::HTTP_NOT_FOUND:
+                qInfo() << "404 received. Response text: " << r.text;
+                break;
+
+            case 0:
+                m_focuserCache.m_propertyMutex.lock();
+                m_focuserCache.exists = false;
+                m_focuserCache.m_propertyMutex.unlock();
+                break;
+
+            default:
+                qInfo() << "Error received from" << r.url.str() << " | Error code: " << r.status_code;
+                break;
+            }
+
+
+        });
+    }
+    m_focuserCache.m_propertyMutex.unlock();
 }
 
 // IPWIClient interface
 void PWI4::focuserConnect() {
-    sendPostRequest("/focuser/connect", {});
+    sendGetRequest("/connect");
 }
 
 void PWI4::focuserDisconnect() {
-    sendPostRequest("/focuser/disconnect", {});
+    sendGetRequest("/disconnect");
 }
 
 void PWI4::focuserEnable() {
-    sendPostRequest("/focuser/enable", {});
+    throw std::logic_error("not implemented");
 }
 
 void PWI4::focuserDisable() {
-    sendPostRequest("/focuser/disable", {});
+    throw std::logic_error("not implemented");
 }
 
 void PWI4::focuserGoto(float target) {
-    sendPostRequest("/focuser/goto", { {"position", target} });
+    sendGetRequest("/focuser/goto", { {"position", std::to_string(target)} });
 }
 
 void PWI4::focuserStop() {
-    sendPostRequest("/focuser/stop", {});
+    sendGetRequest("/focuser/stop");
+}
+
+bool PWI4::focuserExists() {
+    tryUpdateFocuserCache();
+    return m_focuserCache.exists;
 }
 
 bool PWI4::focuserIsConnected() {
-    std::string response = sendGetRequest("/focuser");
-    if (response.empty()) return false;
-    try {
-        auto jsonData = nlohmann::json::parse(response);
-        return jsonData["is_connected"];
-    }
-    catch (...) {
-        return false;
-    }
+    tryUpdateFocuserCache();
+    return m_focuserCache.isConnected;
 }
 
 bool PWI4::focuserIsEnabled() {
-    std::string response = sendGetRequest("/focuser");
-    if (response.empty()) return false;
-    try {
-        auto jsonData = nlohmann::json::parse(response);
-        return jsonData["is_enabled"];
-    }
-    catch (...) {
-        return false;
-    }
+    throw std::logic_error("not implemented");
 }
 
 bool PWI4::focuserIsMoving() {
-    std::string response = sendGetRequest("/focuser");
-    if (response.empty()) return false;
-    try {
-        auto jsonData = nlohmann::json::parse(response);
-        return jsonData["is_moving"];
-    }
-    catch (...) {
-        return false;
-    }
+    tryUpdateFocuserCache();
+    return m_focuserCache.isMoving;
 }
 
 float PWI4::focuserPosition() {
-    std::string response = sendGetRequest("/focuser");
-    if (response.empty()) return -1.0f;
-    try {
-        auto jsonData = nlohmann::json::parse(response);
-        return jsonData["position"];
-    }
-    catch (...) {
-        return -1.0f;
-    }
+    tryUpdateFocuserCache();
+    return m_focuserCache.position;
 }

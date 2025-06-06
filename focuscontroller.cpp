@@ -34,17 +34,20 @@ void FocusController::setupWidget() {
     m_disconnectBtn->setDisabled(true);
     connectLayout->addWidget(m_connectBtn);
     connectLayout->addWidget(m_disconnectBtn);
+    connect(m_connectBtn, &QPushButton::clicked, this, [=, this] {
+        m_connectRequestTime = std::chrono::system_clock::now().time_since_epoch();
+    });
 
-    QHBoxLayout *enableLayout = new QHBoxLayout();
-    m_enableBtn = new QPushButton("Enable", this);
-    m_disableBtn = new QPushButton("Disable", this);
-    m_enableBtn->setDisabled(true);
-    m_disableBtn->setDisabled(true);
-    enableLayout->addWidget(m_enableBtn);
-    enableLayout->addWidget(m_disableBtn);
+    // QHBoxLayout *enableLayout = new QHBoxLayout();
+    // m_enableBtn = new QPushButton("Enable", this);
+    // m_disableBtn = new QPushButton("Disable", this);
+    // m_enableBtn->setDisabled(true);
+    // m_disableBtn->setDisabled(true);
+    // enableLayout->addWidget(m_enableBtn);
+    // enableLayout->addWidget(m_disableBtn);
 
     buttonLayout->addLayout(connectLayout);
-    buttonLayout->addLayout(enableLayout);
+    // buttonLayout->addLayout(enableLayout);
     widgetLayout->addLayout(buttonLayout);
 
     // focuser position
@@ -104,7 +107,7 @@ void FocusController::setupWidget() {
     m_isMovingLabel->setFont(QFont("Consolas", 20));
 
     m_stopBtn = new QPushButton();
-    m_stopBtn->setStyleSheet("background-color: red; color: white;");
+    m_stopBtn->setStyleSheet("background-color: red; color: white; :disabled { background-color: dark-red; color: gray; }");
     m_stopBtn->setText("STOP");
     m_stopBtn->setFont(QFont("Consolas", 24));
     m_stopBtn->setDisabled(true);
@@ -115,9 +118,18 @@ void FocusController::setupWidget() {
 
     // event timer
     QTimer *timer = new QTimer(this);
+    connect(timer, &QTimer::timeout, this, [=, this]() {
+        bool isFocuserConnected = m_pwi->focuserIsConnected();
+        setEnabledControls(isFocuserConnected);
+
+        bool isConnecting = std::chrono::system_clock::now().time_since_epoch() - m_connectRequestTime < FocusController::CONNECT_TIMEOUT;
+
+        m_connectBtn->setDisabled(isFocuserConnected || isConnecting);
+        m_disconnectBtn->setEnabled(isFocuserConnected);
+    });
     connect(timer, &QTimer::timeout, this, &FocusController::updatePosition);
     connect(timer, &QTimer::timeout, this, &FocusController::updateIsMoving);
-    connect(timer, &QTimer::timeout, this, [=]() {
+    connect(timer, &QTimer::timeout, this, [=, this]() {
         m_stepSize = m_stepSizeText->text().toFloat();
     });
     timer->start(100);
@@ -127,28 +139,28 @@ void FocusController::setupWidget() {
 }
 
 void FocusController::setupControls() {
-    connect(m_connectBtn, &QPushButton::clicked, this, [=]() { doPwiConnect(true); });
-    connect(m_disconnectBtn, &QPushButton::clicked, this, [=]() { doPwiConnect(false); });
+    connect(m_connectBtn, &QPushButton::clicked, this, [=, this]() { doPwiConnect(true); });
+    connect(m_disconnectBtn, &QPushButton::clicked, this, [=, this]() { doPwiConnect(false); });
 
-    connect(m_enableBtn, &QPushButton::clicked, this, [=]() { doPwiEnable(true); });
-    connect(m_disableBtn, &QPushButton::clicked, this, [=]() { doPwiEnable(false); });
+    // connect(m_enableBtn, &QPushButton::clicked, this, [=]() { doPwiEnable(true); });
+    // connect(m_disableBtn, &QPushButton::clicked, this, [=]() { doPwiEnable(false); });
 
     connect(m_stepSizeText, &QLineEdit::textChanged, this, &FocusController::updateStepSize);
-    connect(m_upStepBtn, &QPushButton::clicked, this, [=]() {
+    connect(m_upStepBtn, &QPushButton::clicked, this, [=, this]() {
         this->moveFocuser(m_pwi->focuserPosition() + m_stepSize);
         this->setEnabledControls(false);
     });
-    connect(m_downStepBtn, &QPushButton::clicked, this, [=]() {
+    connect(m_downStepBtn, &QPushButton::clicked, this, [=, this]() {
         this->moveFocuser(m_pwi->focuserPosition() - m_stepSize);
         this->setEnabledControls(false);
     });
 
-    connect(m_goPositionBtn, &QPushButton::clicked, this, [=]() {
+    connect(m_goPositionBtn, &QPushButton::clicked, this, [=, this]() {
         float newPosition = m_goPositionText->text().toFloat();
         this->moveFocuser(newPosition);
     });
 
-    connect(m_stopBtn, &QPushButton::clicked, this, [=]() {
+    connect(m_stopBtn, &QPushButton::clicked, this, [=, this]() {
         m_pwi->focuserStop();
     });
 }
@@ -166,19 +178,19 @@ void FocusController::checkPwiConnection() {
 
     m_connectBtn->setDisabled(isConnected);
     m_disconnectBtn->setEnabled(isConnected);
-    m_enableBtn->setEnabled(isConnected);
+    // m_enableBtn->setEnabled(isConnected);
 
-    if (!isConnected) {
-        m_disableBtn->setDisabled(true);
-    }
+    // if (!isConnected) {
+    //     m_disableBtn->setDisabled(true);
+    // }
 }
 
 void FocusController::checkPwiEnabled() {
     bool isEnabled = m_pwi->focuserIsEnabled();
 
     m_disconnectBtn->setDisabled(isEnabled);
-    m_enableBtn->setDisabled(isEnabled);
-    m_disableBtn->setEnabled(isEnabled);
+    // m_enableBtn->setDisabled(isEnabled);
+    // m_disableBtn->setEnabled(isEnabled);
     m_stopBtn->setEnabled(isEnabled);
 
     this->setEnabledControls(isEnabled);
@@ -207,23 +219,24 @@ void FocusController::doPwiConnect(bool isConnecting) {
         m_disconnectBtn->setDisabled(true);
     }
 
-    QTimer::singleShot(1000, this, &FocusController::checkPwiConnection);
+    // QTimer::singleShot(500, this, &FocusController::checkPwiConnection);
 }
 
 void FocusController::doPwiEnable(bool isEnabling) {
-    if (isEnabling) {
-        m_pwi->focuserEnable();
-        m_enableBtn->setDisabled(true);
-    } else {
-        m_pwi->focuserDisable();
-        m_disableBtn->setDisabled(true);
-    }
+    // if (isEnabling) {
+    //     m_pwi->focuserEnable();
+    //     m_enableBtn->setDisabled(true);
+    // } else {
+    //     m_pwi->focuserDisable();
+    //     m_disableBtn->setDisabled(true);
+    // }
 
     QTimer::singleShot(1000, this, &FocusController::checkPwiEnabled);
 }
 
 void FocusController::updatePosition() {
-    if (m_pwi->focuserIsConnected() && m_pwi->focuserIsEnabled()) {
+    // if (m_pwi->focuserIsConnected() && m_pwi->focuserIsEnabled()) {
+    if (m_pwi->focuserIsConnected()) {
         m_positionLabel->setText(QString::number(m_pwi->focuserPosition()));
     }
 }
@@ -243,7 +256,8 @@ void FocusController::updateStepSize(const QString &textChanged) {
 }
 
 void FocusController::updateIsMoving() {
-    if (m_pwi->focuserIsConnected() && m_pwi->focuserIsEnabled()) {
+    // if (m_pwi->focuserIsConnected() && m_pwi->focuserIsEnabled()) {
+    if (m_pwi->focuserIsConnected()) {
         if (m_pwi->focuserIsMoving()) {
             m_isMovingLabel->setText("Moving...");
             m_isMovingLabel->setStyleSheet("color: red");

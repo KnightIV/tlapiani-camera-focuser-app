@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QWidget>
+#include "pwiclient.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {

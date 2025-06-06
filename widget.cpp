@@ -1,5 +1,7 @@
 #include "widget.h"
 
+#include <string>
+
 #include <QLabel>
 #include <QPushButton>
 #include <QGridLayout>
@@ -43,7 +45,7 @@ public:
         this->m_position = target;
         this->m_isMoving = true;
 
-        QTimer::singleShot(500, [=]() {
+        QTimer::singleShot(500, [=, this]() {
             this->m_isMoving = false;
         });
     }
@@ -51,6 +53,10 @@ public:
     virtual void focuserStop() override {
         qInfo() << "Called stop";
         this->m_isMoving = false;
+    }
+
+    virtual bool focuserExists() override {
+        return true;
     }
 
     virtual bool focuserIsConnected() override {
@@ -75,9 +81,11 @@ Widget::Widget(QWidget *parent) : QWidget(parent) {
     resize(1000, 800);
 
     QGridLayout *layout = new QGridLayout(this);
+    int port = 8220;
     for (int r = 0; r < 2; r++) {
         for (int c = 0; c < 2; c++) {
-            FocusController *controller = new FocusController(this, new MockPwi4Client());
+            // FocusController *controller = new FocusController(this, new MockPwi4Client());
+            FocusController *controller = new FocusController(this, new PWI4("http://localhost:" + std::to_string(port + r + c)));
             layout->addWidget(controller, r, c);
         }
     }

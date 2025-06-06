@@ -1,27 +1,43 @@
 #pragma once
 
-#include <string>
-#include <curl/curl.h>
-#include <nlohmann/json.hpp>
-
 #include "ipwi4client.h"
+
+#include <string>
+#include <mutex>
+#include <initializer_list>
+#include <chrono>
+
+#include <cpr/cpr.h>
 
 class PWI4 : public IPWI4Client {
 
 private:
+    struct FocuserPropertyCache {
+        static constexpr std::chrono::duration<double, std::milli> STALE_TIME = std::chrono::milliseconds(200);
+        std::mutex m_propertyMutex;
+        std::chrono::duration<double, std::milli> m_propertyLastUpdate;
+        bool cacheUpdating = false;
+
+        bool exists = false;
+        bool isConnected = false;
+        bool isMoving = false;
+        float position = 0;
+    };
+
+private:
     std::string base_url;
-    CURL *curl;
-    CURLcode res;
+    PWI4::FocuserPropertyCache m_focuserCache;
 
 public:
     PWI4(const std::string &url);
     ~PWI4();
 
 private:
-    static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp);
-
-    std::string sendGetRequest(const std::string &endpoint);
-    bool sendPostRequest(const std::string &endpoint, const nlohmann::json &postData);
+    cpr::Response sendGetRequest(const std::string &endpoint,
+                                 const std::initializer_list<cpr::Parameter> parameters);
+    void sendGetRequestAsync(const std::string &endpoint,
+                             std::function<void (cpr::Response)> callback);
+    void tryUpdateFocuserCache();
 
 // IPWI4Client interface
 public:
@@ -31,6 +47,8 @@ public:
     virtual void focuserDisable() override;
     virtual void focuserGoto(float target) override;
     virtual void focuserStop() override;
+
+    virtual bool focuserExists() override;
     virtual bool focuserIsConnected() override;
     virtual bool focuserIsEnabled() override;
     virtual bool focuserIsMoving() override;

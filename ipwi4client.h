@@ -12,6 +12,7 @@ public:
     virtual void focuserStop() = 0;
 
     // properties
+    virtual bool focuserExists() = 0;
     virtual bool focuserIsConnected() = 0;
     virtual bool focuserIsEnabled() = 0;
     virtual bool focuserIsMoving() = 0;

@@ -4,6 +4,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QLineEdit>
+#include <chrono>
 
 #include "ipwi4client.h"
 
@@ -11,12 +12,16 @@ class FocusController : public QWidget {
     Q_OBJECT
 
 private:
+    static constexpr std::chrono::duration<double, std::milli> CONNECT_TIMEOUT = std::chrono::milliseconds(500);
+
     int m_focuserId;
     float m_stepSize;
     IPWI4Client *m_pwi;
 
+    std::chrono::duration<double, std::milli> m_connectRequestTime;
+
     QPushButton *m_connectBtn, *m_disconnectBtn;
-    QPushButton *m_enableBtn, *m_disableBtn;
+    // QPushButton *m_enableBtn, *m_disableBtn;
 
     QLabel *m_positionLabel;
     QLineEdit *m_stepSizeText, *m_goPositionText;
