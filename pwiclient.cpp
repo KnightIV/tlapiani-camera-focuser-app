@@ -2,6 +2,14 @@
 
 #include <QDebug>
 
+void debugOutput(std::initializer_list<std::string> outputs) {
+    QTextStream qss;
+    for (std::string s : outputs) {
+        qss << QString(s.c_str());
+    }
+    qInfo() << qss.string();
+}
+
 std::string getFocuserProperty(const std::string &pwiResponse, const std::string property) {
     std::stringstream ss(pwiResponse);
 
@@ -45,7 +53,7 @@ cpr::Response PWI4::sendGetRequest(const std::string &endpoint,
 
 void PWI4::sendGetRequestAsync(const std::string &endpoint, std::function<void (cpr::Response)> callback) {
     const std::string url = base_url + endpoint;
-    cpr::GetCallback(callback, cpr::Url(url), cpr::Timeout{2000});
+    cpr::GetCallback(callback, cpr::Url(url), cpr::Timeout{5000});
 }
 
 void PWI4::tryUpdateFocuserCache() {
@@ -56,16 +64,16 @@ void PWI4::tryUpdateFocuserCache() {
         m_focuserCache.m_propertyLastUpdate = curTime;
 
         // enable seems to be a good endpoint that doesn't functionally do anything but still returns app status
-        sendGetRequestAsync("/enable", [=, this](cpr::Response r) {
+        sendGetRequestAsync("/focuser/enable", [=, this](cpr::Response r) {
+            qInfo() << r.url.str() << r.status_code;
             switch (r.status_code) {
             case cpr::status::HTTP_OK:
                 m_focuserCache.m_propertyMutex.lock();
-                m_focuserCache.exists = getFocuserPropertyBool(r.text, "exists");
+                m_focuserCache.exists = true;
                 m_focuserCache.isConnected = getFocuserPropertyBool(r.text, "is_connected");
                 m_focuserCache.position = getFocuserPropertyFloat(r.text, "position");
                 m_focuserCache.isMoving = getFocuserPropertyBool(r.text, "is_moving");
 
-                m_focuserCache.cacheUpdating = false;
                 m_focuserCache.m_propertyMutex.unlock();
                 break;
 
@@ -84,7 +92,7 @@ void PWI4::tryUpdateFocuserCache() {
                 break;
             }
 
-
+            m_focuserCache.cacheUpdating = false;
         });
     }
     m_focuserCache.m_propertyMutex.unlock();
@@ -92,11 +100,11 @@ void PWI4::tryUpdateFocuserCache() {
 
 // IPWIClient interface
 void PWI4::focuserConnect() {
-    sendGetRequest("/connect");
+    sendGetRequest("/focuser/connect");
 }
 
 void PWI4::focuserDisconnect() {
-    sendGetRequest("/disconnect");
+    sendGetRequest("/focuser/disconnect");
 }
 
 void PWI4::focuserEnable() {
@@ -108,7 +116,8 @@ void PWI4::focuserDisable() {
 }
 
 void PWI4::focuserGoto(float target) {
-    sendGetRequest("/focuser/goto", { {"position", std::to_string(target)} });
+    auto r = sendGetRequest("/focuser/goto", { {"target", std::to_string(target)} });
+    qInfo() << r.url.str() << r.status_code;
 }
 
 void PWI4::focuserStop() {
@@ -137,4 +146,8 @@ bool PWI4::focuserIsMoving() {
 float PWI4::focuserPosition() {
     tryUpdateFocuserCache();
     return m_focuserCache.position;
+}
+
+std::string PWI4::clientEndpoint() {
+    return base_url;
 }

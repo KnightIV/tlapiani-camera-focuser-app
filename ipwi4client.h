@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 class IPWI4Client { // interface
 public:
     IPWI4Client() {}
@@ -17,6 +19,8 @@ public:
     virtual bool focuserIsEnabled() = 0;
     virtual bool focuserIsMoving() = 0;
     virtual float focuserPosition() = 0;
+
+    virtual std::string clientEndpoint() = 0;
 
     virtual ~IPWI4Client() {}
 };

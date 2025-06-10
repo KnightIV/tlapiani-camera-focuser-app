@@ -74,6 +74,10 @@ public:
     virtual float focuserPosition() override {
         return m_position;
     }
+
+    virtual std::string clientEndpoint() override {
+        return "MOCK";
+    }
 };
 
 Widget::Widget(QWidget *parent) : QWidget(parent) {
@@ -84,8 +88,7 @@ Widget::Widget(QWidget *parent) : QWidget(parent) {
     int port = 8220;
     for (int r = 0; r < 2; r++) {
         for (int c = 0; c < 2; c++) {
-            // FocusController *controller = new FocusController(this, new MockPwi4Client());
-            FocusController *controller = new FocusController(this, new PWI4("http://localhost:" + std::to_string(port + r + c)));
+            FocusController *controller = new FocusController(this, new PWI4("http://localhost:" + std::to_string(port + r*2 + c)));
             layout->addWidget(controller, r, c);
         }
     }

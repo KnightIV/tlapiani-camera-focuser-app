@@ -14,7 +14,8 @@ int FocusController::getNextId() {
 }
 
 void FocusController::setupWidget() {
-    QVBoxLayout *widgetLayout = new QVBoxLayout(this);
+    QWidget *container = new QWidget(this);
+    QVBoxLayout *widgetLayout = new QVBoxLayout(container);
 
     // title
     QLabel *titleLabel = new QLabel();
@@ -38,16 +39,7 @@ void FocusController::setupWidget() {
         m_connectRequestTime = std::chrono::system_clock::now().time_since_epoch();
     });
 
-    // QHBoxLayout *enableLayout = new QHBoxLayout();
-    // m_enableBtn = new QPushButton("Enable", this);
-    // m_disableBtn = new QPushButton("Disable", this);
-    // m_enableBtn->setDisabled(true);
-    // m_disableBtn->setDisabled(true);
-    // enableLayout->addWidget(m_enableBtn);
-    // enableLayout->addWidget(m_disableBtn);
-
     buttonLayout->addLayout(connectLayout);
-    // buttonLayout->addLayout(enableLayout);
     widgetLayout->addLayout(buttonLayout);
 
     // focuser position
@@ -107,7 +99,7 @@ void FocusController::setupWidget() {
     m_isMovingLabel->setFont(QFont("Consolas", 20));
 
     m_stopBtn = new QPushButton();
-    m_stopBtn->setStyleSheet("background-color: red; color: white; :disabled { background-color: dark-red; color: gray; }");
+    m_stopBtn->setStyleSheet("background-color: red; color: white;");
     m_stopBtn->setText("STOP");
     m_stopBtn->setFont(QFont("Consolas", 24));
     m_stopBtn->setDisabled(true);
@@ -126,9 +118,11 @@ void FocusController::setupWidget() {
 
         m_connectBtn->setDisabled(isFocuserConnected || isConnecting);
         m_disconnectBtn->setEnabled(isFocuserConnected);
+        m_stopBtn->setEnabled(isFocuserConnected);
     });
     connect(timer, &QTimer::timeout, this, &FocusController::updatePosition);
     connect(timer, &QTimer::timeout, this, &FocusController::updateIsMoving);
+    connect(timer, &QTimer::timeout, this, &FocusController::checkPwiExists);
     connect(timer, &QTimer::timeout, this, [=, this]() {
         m_stepSize = m_stepSizeText->text().toFloat();
     });
@@ -136,14 +130,13 @@ void FocusController::setupWidget() {
 
     this->setupControls();
     this->setEnabledControls(false);
+
+    m_mainLayout->addWidget(container);
 }
 
 void FocusController::setupControls() {
     connect(m_connectBtn, &QPushButton::clicked, this, [=, this]() { doPwiConnect(true); });
     connect(m_disconnectBtn, &QPushButton::clicked, this, [=, this]() { doPwiConnect(false); });
-
-    // connect(m_enableBtn, &QPushButton::clicked, this, [=]() { doPwiEnable(true); });
-    // connect(m_disableBtn, &QPushButton::clicked, this, [=]() { doPwiEnable(false); });
 
     connect(m_stepSizeText, &QLineEdit::textChanged, this, &FocusController::updateStepSize);
     connect(m_upStepBtn, &QPushButton::clicked, this, [=, this]() {
@@ -162,6 +155,7 @@ void FocusController::setupControls() {
 
     connect(m_stopBtn, &QPushButton::clicked, this, [=, this]() {
         m_pwi->focuserStop();
+        m_emergencyStopped = true;
     });
 }
 
@@ -178,22 +172,15 @@ void FocusController::checkPwiConnection() {
 
     m_connectBtn->setDisabled(isConnected);
     m_disconnectBtn->setEnabled(isConnected);
-    // m_enableBtn->setEnabled(isConnected);
-
-    // if (!isConnected) {
-    //     m_disableBtn->setDisabled(true);
-    // }
 }
 
-void FocusController::checkPwiEnabled() {
-    bool isEnabled = m_pwi->focuserIsEnabled();
-
-    m_disconnectBtn->setDisabled(isEnabled);
-    // m_enableBtn->setDisabled(isEnabled);
-    // m_disableBtn->setEnabled(isEnabled);
-    m_stopBtn->setEnabled(isEnabled);
-
-    this->setEnabledControls(isEnabled);
+void FocusController::checkPwiExists() {
+    if (m_pwi->focuserExists()) {
+        m_mainLayout->setCurrentIndex(1);
+    } else {
+        m_mainLayout->setCurrentIndex(0);
+        m_emergencyStopped = false;
+    }
 }
 
 void FocusController::moveFocuser(float newPosition) {
@@ -202,7 +189,21 @@ void FocusController::moveFocuser(float newPosition) {
 
 FocusController::FocusController(QWidget *parent, IPWI4Client *pwi) : QWidget{parent}, m_pwi(pwi) {
     m_focuserId = getNextId();
+
+    QWidget *notExistsContainer = new QWidget(this);
+    QVBoxLayout *notExistsLayout = new QVBoxLayout(notExistsContainer);
+    QLabel *label = new QLabel();
+    label->setText(QString(("PWI Server not detected at \n" + m_pwi->clientEndpoint()).c_str()));
+    label->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+    label->setFont(QFont("Consolas", 32));
+    label->setStyleSheet("color: red;");
+    notExistsLayout->addWidget(label);
+
+    m_mainLayout = new QStackedLayout();
+    m_mainLayout->addWidget(notExistsContainer);
     this->setupWidget();
+
+    this->setLayout(m_mainLayout);
 }
 
 FocusController::~FocusController() {
@@ -218,24 +219,9 @@ void FocusController::doPwiConnect(bool isConnecting) {
         m_pwi->focuserDisconnect();
         m_disconnectBtn->setDisabled(true);
     }
-
-    // QTimer::singleShot(500, this, &FocusController::checkPwiConnection);
-}
-
-void FocusController::doPwiEnable(bool isEnabling) {
-    // if (isEnabling) {
-    //     m_pwi->focuserEnable();
-    //     m_enableBtn->setDisabled(true);
-    // } else {
-    //     m_pwi->focuserDisable();
-    //     m_disableBtn->setDisabled(true);
-    // }
-
-    QTimer::singleShot(1000, this, &FocusController::checkPwiEnabled);
 }
 
 void FocusController::updatePosition() {
-    // if (m_pwi->focuserIsConnected() && m_pwi->focuserIsEnabled()) {
     if (m_pwi->focuserIsConnected()) {
         m_positionLabel->setText(QString::number(m_pwi->focuserPosition()));
     }
@@ -256,9 +242,12 @@ void FocusController::updateStepSize(const QString &textChanged) {
 }
 
 void FocusController::updateIsMoving() {
-    // if (m_pwi->focuserIsConnected() && m_pwi->focuserIsEnabled()) {
     if (m_pwi->focuserIsConnected()) {
-        if (m_pwi->focuserIsMoving()) {
+        if (m_emergencyStopped) {
+            m_isMovingLabel->setText("EMERGENCY STOP\nRestart PWI server");
+            m_isMovingLabel->setStyleSheet("color: red");
+            this->setEnabledControls(false);
+        } else if (m_pwi->focuserIsMoving()) {
             m_isMovingLabel->setText("Moving...");
             m_isMovingLabel->setStyleSheet("color: red");
             this->setEnabledControls(false);

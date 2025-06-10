@@ -12,6 +12,8 @@
 class PWI4 : public IPWI4Client {
 
 private:
+    static constexpr float MAX_FOCUSER_POSITION = 17570;
+
     struct FocuserPropertyCache {
         static constexpr std::chrono::duration<double, std::milli> STALE_TIME = std::chrono::milliseconds(200);
         std::mutex m_propertyMutex;
@@ -53,4 +55,5 @@ public:
     virtual bool focuserIsEnabled() override;
     virtual bool focuserIsMoving() override;
     virtual float focuserPosition() override;
+    virtual std::string clientEndpoint() override;
 };

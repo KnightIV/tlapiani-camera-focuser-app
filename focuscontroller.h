@@ -5,6 +5,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <chrono>
+#include <QStackedLayout>
 
 #include "ipwi4client.h"
 
@@ -16,12 +17,14 @@ private:
 
     int m_focuserId;
     float m_stepSize;
+    bool m_emergencyStopped;
     IPWI4Client *m_pwi;
 
     std::chrono::duration<double, std::milli> m_connectRequestTime;
 
+    QStackedLayout *m_mainLayout;
+
     QPushButton *m_connectBtn, *m_disconnectBtn;
-    // QPushButton *m_enableBtn, *m_disableBtn;
 
     QLabel *m_positionLabel;
     QLineEdit *m_stepSizeText, *m_goPositionText;
@@ -37,7 +40,7 @@ private:
 
     void setEnabledControls(bool enable);
     void checkPwiConnection();
-    void checkPwiEnabled();
+    void checkPwiExists();
     void moveFocuser(float newPosition);
 
 public:
@@ -47,7 +50,6 @@ public:
 
 private slots:
     void doPwiConnect(bool isConnecting);
-    void doPwiEnable(bool isEnabling);
 
     void updatePosition();
     void updateStepSize(const QString &textChanged);
